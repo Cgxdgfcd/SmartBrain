@@ -5,10 +5,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 
 import javax.annotation.Resource;
 
-import java.util.List;
-import java.util.Map;
-
-import static org.junit.jupiter.api.Assertions.*;
+import java.util.Arrays;
 
 @SpringBootTest
 class ChartMapperTest {
@@ -17,9 +14,9 @@ class ChartMapperTest {
     private ChartMapper chartMapper;
 
     @Test
-    void queryChartData() {
-        String sql = "select * from chart_1763044232794267649";
-        List<Map<String, Object>> result = chartMapper.queryChartData(sql);
-        System.out.println(result);
+    void createTable() {
+//        chartMapper.createTable("chart_1234", Arrays.asList("日期", "人数"));
+        chartMapper.insertValues("chart_1234",
+                Arrays.asList(Arrays.asList("1号", "10"), Arrays.asList("2号", "20")));
     }
 }

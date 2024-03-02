@@ -1,7 +1,15 @@
 package com.yupi.springbootinit.service;
 
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.yupi.springbootinit.common.BaseResponse;
+import com.yupi.springbootinit.model.dto.chart.ChartQueryRequest;
+import com.yupi.springbootinit.model.dto.chart.GenChartByAiRequest;
 import com.yupi.springbootinit.model.entity.Chart;
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.yupi.springbootinit.model.vo.BiResponse;
+import org.springframework.web.multipart.MultipartFile;
+
+import javax.servlet.http.HttpServletRequest;
 
 /**
 * @author 1052295067
@@ -10,4 +18,7 @@ import com.baomidou.mybatisplus.extension.service.IService;
 */
 public interface ChartService extends IService<Chart> {
 
+    BaseResponse<BiResponse> insertChartRequest(MultipartFile multipartFile, GenChartByAiRequest genChartByAiRequest, HttpServletRequest request);
+
+    BaseResponse<Page<Chart>> listMyChartByPage(ChartQueryRequest chartQueryRequest, HttpServletRequest request);
 }

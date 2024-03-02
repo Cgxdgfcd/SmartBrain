@@ -8,7 +8,6 @@
             <id property="id" column="id" jdbcType="BIGINT"/>
             <result property="name" column="name" jdbcType="VARCHAR"/>
             <result property="goal" column="goal" jdbcType="VARCHAR"/>
-            <result property="chartData" column="chartData" jdbcType="VARCHAR"/>
             <result property="chartType" column="chartType" jdbcType="VARCHAR"/>
             <result property="genChart" column="genChart" jdbcType="VARCHAR"/>
             <result property="genResult" column="genResult" jdbcType="VARCHAR"/>
@@ -27,4 +26,24 @@
     <select id="queryChartData" parameterType="string" resultType="map">
         ${querySql}
     </select>
+
+    <!--动态创建表-->
+    <update id="createTable">
+        create table if not exists ${newTableName}
+        <foreach collection="fieldNameList" item="fieldName" open="(" close=")" separator=",">
+            ${fieldName} varchar(64) null
+        </foreach>
+        comment '用户数据' collate = utf8mb4_unicode_ci;
+    </update>
+
+    <insert id="insertValues">
+        insert into ${tableName}
+        values
+        <foreach collection="values" item="value" separator=",">
+            (<foreach collection="value" item="val" separator=",">
+                #{val}
+            </foreach>)
+        </foreach>
+    </insert>
+
 </mapper>

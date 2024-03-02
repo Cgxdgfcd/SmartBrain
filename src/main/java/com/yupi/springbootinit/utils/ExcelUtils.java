@@ -4,6 +4,8 @@ import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import com.alibaba.excel.EasyExcel;
 import com.alibaba.excel.support.ExcelTypeEnum;
+import com.yupi.springbootinit.common.ErrorCode;
+import com.yupi.springbootinit.exception.ThrowUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -22,22 +24,11 @@ import java.util.stream.Collectors;
 public class ExcelUtils {
 
     /**
-     * excel转csv
-     * @param multipartFile
+     * excel列表转csv
+     * @param list
      * @return
      */
-    public static String excel2csv(MultipartFile multipartFile){
-        List<Map<Integer, String>> list = null;
-        try {
-            list = EasyExcel.read(multipartFile.getInputStream())
-                    .excelType(ExcelTypeEnum.XLSX)
-                    .sheet()
-                    .headRowNumber(0)
-                    .doReadSync();
-        } catch (IOException e) {
-            log.error("表格转换错误", e);
-        }
-
+    public static String excel2csv(List<Map<Integer, String>> list){
         if(CollUtil.isEmpty(list)){
             return "";
         }
@@ -54,6 +45,28 @@ public class ExcelUtils {
         }
 
         return stringBuilder.toString();
+    }
+
+    /**
+     * 读取 Excel文件
+     * @param multipartFile
+     */
+    public static List<Map<Integer, String>> readExcel(MultipartFile multipartFile){
+        List<Map<Integer, String>> list = null;
+        try {
+            list = EasyExcel.read(multipartFile.getInputStream())
+                    .excelType(ExcelTypeEnum.XLSX)
+                    .sheet()
+                    .headRowNumber(0)
+                    .doReadSync();
+        } catch (IOException e) {
+            log.error("表格转换错误", e);
+        }
+
+        assert list != null;
+        ThrowUtils.throwIf(list.size() < 2, ErrorCode.PARAMS_ERROR, "表格格式有误");
+
+        return list;
     }
 
     public static void main(String[] args) {
