@@ -11,6 +11,7 @@ import com.yupi.springbootinit.constant.CommonConstant;
 import com.yupi.springbootinit.exception.BusinessException;
 import com.yupi.springbootinit.exception.ThrowUtils;
 import com.yupi.springbootinit.manager.AiManager;
+import com.yupi.springbootinit.manager.RedisLimiterManager;
 import com.yupi.springbootinit.model.dto.chart.ChartQueryRequest;
 import com.yupi.springbootinit.model.dto.chart.GenChartByAiRequest;
 import com.yupi.springbootinit.model.entity.Chart;
@@ -50,6 +51,9 @@ public class ChartServiceImpl extends ServiceImpl<ChartMapper, Chart>
     @Resource
     private ChartMapper chartMapper;
 
+    @Resource
+    private RedisLimiterManager redisLimiterManager;
+
     @Transactional
     @Override
     public BaseResponse<BiResponse> insertChartRequest(MultipartFile multipartFile, GenChartByAiRequest genChartByAiRequest, HttpServletRequest request) {
@@ -72,6 +76,8 @@ public class ChartServiceImpl extends ServiceImpl<ChartMapper, Chart>
         ThrowUtils.throwIf(!validFileSuffixList.contains(suffix), ErrorCode.PARAMS_ERROR, "文件后缀非法");
         // 获取当前登录用户
         User loginUser = userService.getLoginUser(request);
+        // 限流判断，每个用户一个限流器
+        redisLimiterManager.doRateLimit("genChartByAi_" + String.valueOf(loginUser.getId()));
 
         // 无需写prompt，直接使用设置了职责的模型
 //        final String prompt = "你是一个数据分析师和前端开发专家，接下来我会按照以下固定格式给你提供内容：\n" +
