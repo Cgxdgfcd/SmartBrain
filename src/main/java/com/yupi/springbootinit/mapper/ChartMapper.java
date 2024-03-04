@@ -15,7 +15,7 @@ public interface ChartMapper extends BaseMapper<Chart> {
     void createTable(@Param("newTableName") String newTableName,
                      @Param("fieldNameList") List<String>fieldNameList);
 
-    void insertValues(@Param("tableName") String tableName,
+    boolean insertValues(@Param("tableName") String tableName,
                       @Param("values")List<Collection<String>> values);
 }
 

@@ -18,7 +18,9 @@ import javax.servlet.http.HttpServletRequest;
 */
 public interface ChartService extends IService<Chart> {
 
-    BaseResponse<BiResponse> insertChartRequest(MultipartFile multipartFile, GenChartByAiRequest genChartByAiRequest, HttpServletRequest request);
+    BaseResponse<BiResponse> genChartByAi(MultipartFile multipartFile, GenChartByAiRequest genChartByAiRequest, HttpServletRequest request);
+
+    BaseResponse<BiResponse> genChartByAiAsync(MultipartFile multipartFile, GenChartByAiRequest genChartByAiRequest, HttpServletRequest request);
 
     BaseResponse<Page<Chart>> listMyChartByPage(ChartQueryRequest chartQueryRequest, HttpServletRequest request);
 }

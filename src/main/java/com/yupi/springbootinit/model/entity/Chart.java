@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.annotation.*;
 
 import java.io.Serializable;
 import java.util.Date;
+
+import com.yupi.springbootinit.constant.GenTaskStatus;
 import lombok.Data;
 
 /**
@@ -43,6 +45,16 @@ public class Chart implements Serializable {
      * 生成的分析结论
      */
     private String genResult;
+
+    /**
+     * 运行状态
+     */
+    private GenTaskStatus status;
+
+    /**
+     * 执行信息
+     */
+    private String execMessage;
 
     /**
      * 用户id
