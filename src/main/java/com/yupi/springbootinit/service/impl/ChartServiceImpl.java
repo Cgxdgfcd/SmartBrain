@@ -4,6 +4,8 @@ import cn.hutool.core.io.FileUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.github.rholder.retry.RetryException;
+import com.github.rholder.retry.Retryer;
 import com.yupi.springbootinit.common.BaseResponse;
 import com.yupi.springbootinit.common.ErrorCode;
 import com.yupi.springbootinit.common.ResultUtils;
@@ -32,8 +34,7 @@ import org.springframework.web.multipart.MultipartFile;
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
 /**
@@ -47,18 +48,16 @@ public class ChartServiceImpl extends ServiceImpl<ChartMapper, Chart>
 
     @Resource
     private UserService userService;
-
     @Resource
     private AiManager aiManager;
-
     @Resource
     private ChartMapper chartMapper;
-
     @Resource
     private RedisLimiterManager redisLimiterManager;
-
     @Resource
     private ThreadPoolExecutor threadPoolExecutor;
+    @Resource
+    private Retryer retryer;
 
     /**
      * 智能分析（同步）
@@ -239,43 +238,73 @@ public class ChartServiceImpl extends ServiceImpl<ChartMapper, Chart>
         boolean insertResult = chartMapper.insertValues(chartDataTableName, dataList);
         ThrowUtils.throwIf(!insertResult, ErrorCode.SYSTEM_ERROR, "图表数据保存失败");
 
-        // todo 处理任务队列满了抛异常的情况
-        CompletableFuture.runAsync(() -> {
-            //先修改图表任务状态为“执行中”，等执行成功后修改位“已完成”并保存执行结果，执行失败后，状态修改为“失败”，记录任务失败信息
-            Chart updateChart = new Chart();
-            updateChart.setId(chartId);
-            updateChart.setStatus(GenTaskStatus.RUNNING);
-            boolean b = updateById(updateChart);
-            if(!b){
-                handlerChartUpdateError(chartId, "更新图表执行中状态失败");
-                return;
-            }
-
-            //调用AI
-            String answer = aiManager.doChat(biModelId, String.valueOf(userInput));
-            String[] splits = answer.split("【【【【【");
-            if(splits.length < 3){
-                handlerChartUpdateError(chartId, "AI 生成错误");
-                return;
-            }
-            String genChart = splits[1].trim();
-            String genResult = splits[2].trim();
-            Chart updateChart2 = new Chart();
-            updateChart2.setId(chartId);
-            updateChart2.setGenChart(genChart);
-            updateChart2.setGenResult(genResult);
-            updateChart2.setStatus(GenTaskStatus.SUCCEED);
-            boolean b2 = updateById(updateChart2);
-            if(!b2){
-                handlerChartUpdateError(chartId, "更新图表成功状态失败");
-            }
-        }, threadPoolExecutor);
+        // 执行 AI 生成任务
+        executeTaskWithRetry(biModelId, chartId, userInput);
 
         // 对生成的结果进行封装
         BiResponse biResponse = new BiResponse();
         biResponse.setChartId(chart.getId());
 
         return ResultUtils.success(biResponse);
+    }
+
+    /**
+     * 执行 AI 生成任务
+     * @param biModelId
+     * @param chartId
+     * @param userInput
+     */
+    private void executeTaskWithRetry(Long biModelId, Long chartId, StringBuilder userInput){
+        CompletableFuture.runAsync(() -> {
+            // 当执行任务出错时进行重试
+            try {
+                retryer.call(() -> {
+                    //先修改图表任务状态为“执行中”，等执行成功后修改位“已完成”并保存执行结果，执行失败后，状态修改为“失败”，记录任务失败信息
+                    Chart updateChart = new Chart();
+                    updateChart.setId(chartId);
+                    updateChart.setStatus(GenTaskStatus.RUNNING);
+                    boolean b = updateById(updateChart);
+                    if(!b){
+                        handlerChartUpdateError(chartId, "更新图表执行中状态失败");
+                        return false;
+                    }
+
+                    //调用AI
+                    String answer = aiManager.doChat(biModelId, String.valueOf(userInput));
+                    String[] splits = answer.split("【【【【【");
+                    if(splits.length < 3){
+                        handlerChartUpdateError(chartId, "AI 生成错误");
+                        return false;
+                    }
+                    String genChart = splits[1].trim();
+                    String genResult = splits[2].trim();
+                    Chart updateChart2 = new Chart();
+                    updateChart2.setId(chartId);
+                    updateChart2.setGenChart(genChart);
+                    updateChart2.setGenResult(genResult);
+                    updateChart2.setStatus(GenTaskStatus.SUCCEED);
+                    boolean b2 = updateById(updateChart2);
+                    if(!b2){
+                        handlerChartUpdateError(chartId, "更新图表成功状态失败");
+                        return false;
+                    }
+                    return true;
+                });
+            } catch (ExecutionException | RetryException e) {
+                throw new RuntimeException(e);
+            }
+        }, threadPoolExecutor)
+        // 捕获线程池满时抛出的 RejectedExecutionException
+        .whenComplete((result, throwable) -> {
+            if (throwable instanceof CompletionException) {
+                // 线程池满时进行重试
+                if(throwable.getCause() instanceof RejectedExecutionException) {
+                    log.error("线程池满了，当前任务被拒绝: " + chartId);
+                    // 执行重试
+                    executeTaskWithRetry(biModelId, chartId, userInput);
+                }
+            }
+        });
     }
 
     private void handlerChartUpdateError(Long chartId, String execMessage){
@@ -289,6 +318,12 @@ public class ChartServiceImpl extends ServiceImpl<ChartMapper, Chart>
         }
     }
 
+    /**
+     * 获取我的图表
+     * @param chartQueryRequest
+     * @param request
+     * @return
+     */
     @Override
     public BaseResponse<Page<Chart>> listMyChartByPage(ChartQueryRequest chartQueryRequest, HttpServletRequest request) {
         if (chartQueryRequest == null) {
